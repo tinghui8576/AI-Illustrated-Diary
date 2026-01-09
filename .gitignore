@@ -1,0 +1,16 @@
+# ChromaDB
+chroma_db/
+*.parquet
+*.duckdb
+
+# Generated images
+images/
+*.png
+*.jpg
+
+# Streamlit
+.streamlit/
+__pycache__/
+
+# Local env
+.env

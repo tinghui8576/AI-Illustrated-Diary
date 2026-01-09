@@ -1,12 +1,12 @@
 import uuid
 import chromadb
 from datetime import date, datetime
-
+from pathlib import Path
 
 class ChromaDiaryStore:
     def __init__(
         self,
-        persist_dir: str = "/workspace/chroma_db",
+        persist_dir: str = "chroma_db",
         collection_name: str = "diary_entries"
     ):
         self.client = chromadb.PersistentClient(
@@ -29,16 +29,29 @@ class ChromaDiaryStore:
         self,
         diary_text: str,
         d: date,
+        image,
         style: str,
-        mood: str
+        mood: str, 
+        base_dir="images"
     ):
+        
         diary_id = self._generate_diary_id(d)
         now = datetime.now()
+        date_str = d.isoformat()
+        time_str = now.strftime("%H-%M-%S")
 
+        folder = Path(base_dir) / date_str
+        folder.mkdir(parents=True, exist_ok=True)
+
+        image_path = folder / f"{time_str}.png"
+        image.save(image_path)
+
+    
         metadata = {
             "date": d.isoformat(),
             "time": now.strftime("%H:%M"),
             "created_at": now.isoformat(),
+            "image_path": str(image_path),
             "style": style,
             "mood": mood
         }
@@ -77,13 +90,17 @@ class ChromaDiaryStore:
     # Delete diary
     # ------------------------
     def delete_diary(self, diary_id: str):
-        self.collection.delete(ids=[diary_id])
 
-    # ------------------------
-    # Check if diary exists on date
-    # ------------------------
-    def diary_exists(self, d: date) -> bool:
-        result = self.collection.get(
-            where={"date": d.isoformat()}
-        )
-        return bool(result["ids"])
+        query = self.collection.get(ids=[diary_id])
+
+        if query["metadatas"]:
+            metadata = query["metadatas"][0]
+            image_path = metadata.get("image_path")
+
+            if image_path:
+                path = Path(image_path)
+                if path.exists():
+                    path.unlink() 
+
+        self.collection.delete(ids=[diary_id])
+    

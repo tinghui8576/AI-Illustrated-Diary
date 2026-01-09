@@ -9,6 +9,9 @@ if "generated_images" not in st.session_state:
 if "generated_prompt" not in st.session_state:
     st.session_state.generated_prompt = None
 
+if "has_generated" not in st.session_state:
+    st.session_state.has_generated = False
+
 @st.cache_resource
 def get_store():
     return ChromaDiaryStore()
@@ -33,6 +36,13 @@ def generate_images():
 
     st.session_state.generated_images = images
     st.session_state.generated_prompt = prompt
+    st.session_state.has_generated = True
+
+def reset_temp_state():
+    temp_keys = ["generated_images", "generated_prompt", "selected_image_index", "has_generated"]
+    for key in temp_keys:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 # ------------------------
@@ -77,62 +87,79 @@ diary_text = st.text_area(
 )
 
 # ------------------------
-# Save button
+# Generate Images 
 # ------------------------
-if st.button("💾 Save Diary"):
-    if diary_text.strip() == "":
-        st.warning("Diary entry cannot be empty.")
-    else:
-        
-        st.write("### Preview")
-        st.write(f"**Date:** {selected_date}")
-        st.write(f"**Style:** {style}")
-        st.write(f"**Mood:** {mood}")
-        st.write("**Content:**")
-        st.write(diary_text)
+if not st.session_state.has_generated:
+    if st.button("🎨 Generate Images"):
+        if diary_text.strip() == "":
+            st.warning("Diary entry cannot be empty.")
+        else:
+            generate_images()
+            st.rerun()
 
-        store.save_diary(
-            diary_text=diary_text,
-            d=selected_date,
-            style=style,
-            mood=mood
-        )
-        st.success("Diary saved!")
-        
-        generate_images()
+
 
 if st.session_state.generated_images:
-    st.subheader("🎨 Generated Images")
 
-    st.text_area(
-        "Prompt",
-        value=st.session_state.generated_prompt,
-        height=100
-    )
-
-    # 🔁 Regenerate button
-    if st.button("🔄 Regenerate Images"):
-        generate_images()
-        st.rerun()
-
+    # ------------------------
+    # Regenerate Images
+    # ------------------------
+    if st.session_state.generated_images and st.session_state.has_generated:
+        if st.button("🔄 Regenerate Images"):
+            reset_temp_state()
+            generate_images()
+            st.rerun()
     # ------------------------
     # Image selection
     # ------------------------
     st.subheader("🎨 Select your favorite image")
 
+    st.markdown("""
+    <style>
+    .image-card {
+        border-radius: 12px;
+        overflow: hidden;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .image-card:hover {
+        transform: scale(1.03);
+        box-shadow: 0 6px 20px rgba(0,0,0,0.25);
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
     cols = st.columns(len(st.session_state.generated_images))
 
     for i, (col, img) in enumerate(zip(cols, st.session_state.generated_images)):
         with col:
+            st.markdown('<div class="image-card">', unsafe_allow_html=True)
             st.image(img, use_container_width=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
             if st.button("Select", key=f"select-img-{i}"):
                 st.session_state.selected_image_index = i
+                st.success(f"Selected Image {i+1}")
+
+    # ------------------------
+    # Save diary entry with image
+    # ------------------------
     if "selected_image_index" in st.session_state:
-        st.success(f"Selected Image {st.session_state.selected_image_index + 1}")
+        store.save_diary(
+            diary_text=diary_text,
+            d=selected_date,
+            image=st.session_state.generated_images[st.session_state.selected_image_index],
+            style=style,
+            mood=mood
+        )
+        
+        st.success("Diary saved!")
+        reset_temp_state()
+        st.rerun() 
+    
 
-
-
+# ------------------------
+# Load and display diaries for the selected date
+# ------------------------
 entries = store.load_diaries(selected_date)
 if entries:
     st.subheader(f"📚 Diaries on {selected_date}")
@@ -148,6 +175,11 @@ if entries:
                 f"🎭 {entry['metadata']['style']} | "
                 f"🙂 {entry['metadata']['mood']}"
             )
+
+            image_path = entry["metadata"].get("image_path")
+            if image_path:
+                st.image(image_path, use_container_width=True)
+
             st.write(entry["text"])
 
         with col_btn:

@@ -19,7 +19,7 @@ class ImageGenerator:
         result = self.pipe(
             prompt=[prompt] * num_images,
             negative_prompt=[negative_prompt] * num_images,
-            num_inference_steps=15,
+            num_inference_steps=20,
             guidance_scale=7.5
         )
         return result.images

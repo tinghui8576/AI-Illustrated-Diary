@@ -17,7 +17,7 @@ class PromptGenerator:
             "text-generation",
             model=self.model,
             tokenizer=self.tokenizer,
-            max_new_tokens=50, 
+            max_new_tokens=60, 
             temperature=0.5,
             pad_token_id=self.tokenizer.eos_token_id, 
             device=0 if self.device == "cuda" else -1
@@ -29,35 +29,38 @@ class PromptGenerator:
         self.template = """
         You are an AI image prompt generator for Stable Diffusion.
 
-        Instructions:
-        - Use only the Scene Objects & Actions provided; do NOT invent new objects or actions.
-        - Based on the Mood and Style, invent visual style attributes: art medium, brush/texture, lighting, color, and emotional tone.
-        - Combine Scene Objects & Actions with the visual style into a SINGLE-LINE AI image prompt.
-        - Do not include explanations or extra text.
+        CRITICAL RULES:
+        - Use ONLY the Scene Objects & Actions provided. Do NOT invent or add any new objects, people, animals, or locations.
+        - Retrieved Memory is for STYLE INFLUENCE ONLY. Never copy objects, actions, or locations from memory.
+        - Based on Mood, Style, and Retrieved Memory, invent visual style attributes: art medium, brush or texture, lighting, color palette, emotional tone.
+        - Combine the Scene Objects & Actions with the visual style into a SINGLE-LINE Stable Diffusion prompt.
+        - Output ONE line only with 40 words. 
+        - No Explanations.
 
-        ### Inputs:
-        Scene Objects & Actions: {scene}
-        Mood: {mood}
-        Style: {style}
+        ### Inputs
+        Scene Objects & Actions:{scene}
+        Retrieved Memory:{memory}
+        Mood:{mood}
+        Style:{style}
 
-        ### Output:
+        ### Output
         """
+
         self.prompt_template = PromptTemplate(
-            input_variables=["scene", "mood", "style"],
+            input_variables=["scene", "memory", "mood", "style"],
             template=self.template
         )
         
         self.sd_chain = self.prompt_template | self.llm
 
-    def generate_prompt(self, scene: str, mood: str, style: str, max_retries: int = 3) -> str:
+    def generate_prompt(self, scene: str, memory: str, mood: str, style: str, max_retries: int = 3) -> str:
         """Generates prompt with a retry mechanism if validation fails."""
-        input_data = {"scene": scene, "mood": mood, "style": style}
+        input_data = {"scene": scene, "memory": memory, "mood": mood, "style": style}
         
         for attempt in range(max_retries):
             raw_output = self.sd_chain.invoke(input_data)
-            
-            if "### Output:" in raw_output:
-                content = raw_output.split("### Output:")[-1].strip()
+            if "### Output" in raw_output:
+                content = raw_output.split("### Output")[-1].strip()
                 
                 lines = [line.strip() for line in content.split('\n') if line.strip()]
                 

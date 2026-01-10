@@ -11,6 +11,8 @@ if "generated_prompt" not in st.session_state:
 
 if "has_generated" not in st.session_state:
     st.session_state.has_generated = False
+if "retrieved_memory" not in st.session_state:
+    st.session_state.retrieved_memory = None
 
 @st.cache_resource
 def get_store():
@@ -27,8 +29,10 @@ Art_generator = get_ai_generator()
 
 def generate_images():
     with st.spinner("Generating Stable Diffusion images..."):
+
         images, prompt = Art_generator.create_image_from_diary(
             scene=diary_text,
+            memory=st.session_state.retrieved_memory,
             mood=mood,
             style=style,
             num_images=2
@@ -45,6 +49,18 @@ def reset_temp_state():
             del st.session_state[key]
 
 
+def format_retrieved_memory(diaries: list, max_chars: int = 500) -> str:
+    """
+    Convert retrieved diary texts into a compact memory string.
+    """
+    memory = []
+
+    for d in diaries:
+        text = d["text"].strip().replace("\n", " ")
+        memory.append(text)
+
+    joined = " | ".join(memory)
+    return joined[:max_chars]
 # ------------------------
 # Page config
 # ------------------------
@@ -94,6 +110,15 @@ if not st.session_state.has_generated:
         if diary_text.strip() == "":
             st.warning("Diary entry cannot be empty.")
         else:
+            retrieved = store.retrieve_similar_diaries(
+                query_text=diary_text,
+                user_mood=mood, 
+                n_results=3
+            )
+            memory_text = format_retrieved_memory(retrieved)
+        
+            st.session_state.retrieved_memory = memory_text
+
             generate_images()
             st.rerun()
 
@@ -154,6 +179,7 @@ if st.session_state.generated_images:
         
         st.success("Diary saved!")
         reset_temp_state()
+        st.session_state.retrieved_memory = None
         st.rerun() 
     
 

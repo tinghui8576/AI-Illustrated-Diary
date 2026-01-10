@@ -23,6 +23,59 @@ class ChromaDiaryStore:
         return f"{d.isoformat()}_{uuid.uuid4().hex[:8]}"
 
     # ------------------------
+    # Memory scoring
+    # ------------------------
+    def memory_score(self, metadata, distance,text, alpha=0.7):
+        """Score memory by similarity and recency (0 < alpha < 1)."""
+        sim_score = 1 - distance
+        event_date = datetime.fromisoformat(metadata["date"])
+        days_ago = (datetime.now() - event_date).days
+        recency_score = 1 / (1 + days_ago)  
+        
+        return alpha * sim_score + (1 - alpha) * recency_score
+
+
+
+    # ------------------------
+    # Semantic search
+    # ------------------------
+    def retrieve_similar_diaries(
+        self,
+        query_text: str,
+        n_results: int = 3,
+        user_mood: str = None
+    ):
+        """
+        Retrieve similar diary texts using embeddings.
+        Optionally filter by mood.
+        """
+        where_filter = {"mood": user_mood} if user_mood else None
+        results = self.collection.query(
+            query_texts=[query_text],
+            n_results=n_results,
+            where=where_filter
+        )
+
+        memories = []
+        for docs, metas, dists, ids in zip(results["documents"], results["metadatas"], results["distances"], results["ids"]):
+            # docs, metas, dists, ids are for one query
+            for doc, meta, dist, _id in zip(docs, metas, dists, ids):
+                if dist > 1:
+                    continue
+                memories.append((doc, meta, dist, _id))
+
+        memories.sort(key=lambda x: self.memory_score(x[1], x[2], x[0]), reverse=True)
+
+        top_memories = memories[:n_results]
+
+        retrieved = [
+            {"id": diary_id, "text": text, "metadata": meta}
+            for text, meta, _, diary_id in top_memories
+        ]
+
+        return retrieved
+
+    # ------------------------
     # Save diary
     # ------------------------
     def save_diary(

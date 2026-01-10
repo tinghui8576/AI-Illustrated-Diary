@@ -1,0 +1,12 @@
+streamlit
+chromadb
+torch
+transformers
+langchain-core
+langchain-huggingface
+diffusers
+Pillow
+numpy
+tqdm
+huggingface-hub
+safetensors
